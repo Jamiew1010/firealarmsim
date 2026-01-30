@@ -1,0 +1,1819 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>UK Fire Alarm Panel Simulator (BS 5839-1 Style) | Instructor Console</title>
+  <meta name="description" content="A UK fire alarm control panel simulator with zones 1–10, MCPs, smoke detectors, exit door faults, power states, event logging, UK-style sounder tones (wail/whoop/two-tone), and a collapsible instructor console." />
+  <meta name="keywords" content="UK fire alarm panel simulator, BS 5839-1, fire alarm control panel training, MCP simulator, smoke detector simulator, zone panel, fire alarm sounder tones, instructor console, FACP simulator" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="author" content="Jamie Whitehouse" />
+  <meta name="theme-color" content="#111111" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="UK Fire Alarm Panel Simulator (BS 5839-1 Style)" />
+  <meta property="og:description" content="Interactive UK fire alarm panel simulator with zones, faults, power states, logging, sound, and an instructor console." />
+  <meta property="og:locale" content="en_GB" />
+
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="UK Fire Alarm Panel Simulator" />
+  <meta name="twitter:description" content="Zones 1–10, MCPs, smoke detectors, faults, power states, logging, and UK-style tones." />
+
+  <style>
+    :root{
+      --bg:#0c0c0f;
+
+      --lcdNormalBg:#031b06;
+      --lcdFaultBg:#2a2303;
+      --lcdFireBg:#2b0505;
+
+      --lcdNormalText:#7dff7d;
+      --lcdFaultText:#ffd54a;
+      --lcdFireText:#ff3b3b;
+
+      --warn:#ffd54a;
+      --fire:#ff3b3b;
+      --ok:#42ff71;
+      --white:#f2f2f2;
+
+      --shadow: rgba(0,0,0,.45);
+      --radius:16px;
+      --btnBorder:#0b0d10;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      background: radial-gradient(1200px 900px at 20% 10%, #1b1f27, var(--bg));
+      color:#e9eef6;
+    }
+
+    .topbar{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      padding:12px 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border-bottom:1px solid rgba(255,255,255,.08);
+      position:sticky;
+      top:0;
+      z-index:10;
+      backdrop-filter: blur(10px);
+    }
+
+    .brand{
+      font-weight:800;
+      letter-spacing:.2px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .spacer{flex:1}
+    .toggle{
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:#e9eef6;
+      padding:8px 10px;
+      border-radius:12px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      user-select:none;
+    }
+    .toggle:active{transform: translateY(1px)}
+    .toggle small{opacity:.75}
+
+    .layout{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:14px;
+      padding:14px;
+      max-width:1200px;
+      margin:0 auto;
+    }
+
+    /* Panel */
+    .panel{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: 0 18px 60px var(--shadow);
+      overflow:hidden;
+    }
+    .panelInner{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:14px;
+      padding:14px;
+      background: linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.18));
+    }
+
+    .lcdFrame{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.18));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: 14px;
+      padding:12px;
+    }
+
+    .lcd{
+      border:1px solid rgba(0,0,0,.55);
+      border-radius: 10px;
+      min-height: 240px;
+      padding:12px;
+      position:relative;
+      overflow:hidden;
+
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      line-height: 1.35;
+
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.30), rgba(0,0,0,.55)),
+        repeating-linear-gradient(180deg, rgba(255,255,255,.06) 0px, rgba(255,255,255,.06) 1px, rgba(0,0,0,0) 2px, rgba(0,0,0,0) 4px),
+        var(--lcdNormalBg);
+      color: var(--lcdNormalText);
+      text-shadow: 0 0 8px rgba(125,255,125,.25);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+    }
+
+    .lcd.lcdFault{
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.55)),
+        repeating-linear-gradient(180deg, rgba(255,255,255,.06) 0px, rgba(255,255,255,.06) 1px, rgba(0,0,0,0) 2px, rgba(0,0,0,0) 4px),
+        var(--lcdFaultBg);
+      color: var(--lcdFaultText);
+      text-shadow: 0 0 10px rgba(255,213,74,.22);
+    }
+
+    .lcd.lcdFire{
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.25), rgba(0,0,0,.60)),
+        repeating-linear-gradient(180deg, rgba(255,255,255,.06) 0px, rgba(255,255,255,.06) 1px, rgba(0,0,0,0) 2px, rgba(0,0,0,0) 4px),
+        var(--lcdFireBg);
+      color: var(--lcdFireText);
+      text-shadow: 0 0 12px rgba(255,59,59,.22);
+    }
+
+    .lcd.lcdOff{
+      background:#050506 !important;
+      color:#666 !important;
+      filter:saturate(.2) brightness(.75);
+      text-shadow:none !important;
+    }
+    .lcd.lcdOff *{color:#666 !important; text-shadow:none !important}
+
+    .lcdHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      margin-bottom:10px;
+    }
+
+    .status{
+      font-weight:900;
+      letter-spacing:.45px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      text-transform:uppercase;
+    }
+
+    .statusDot{
+      width:10px;height:10px;border-radius:50%;
+      background: var(--ok);
+      box-shadow: 0 0 12px rgba(66,255,113,.35);
+      flex:0 0 auto;
+    }
+
+    .lcdRightTop{
+      text-align:right;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:flex-end;
+    }
+    .time{font-weight:900; letter-spacing:.4px;}
+    .clearLogBtn{
+      font-size:12px;
+      padding:6px 9px;
+      border-radius:10px;
+      cursor:pointer;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.18);
+      color: inherit;
+    }
+    .clearLogBtn:active{transform: translateY(1px)}
+    .clearLogBtn:disabled{opacity:.45; cursor:not-allowed}
+
+    .logBox{
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.18);
+      border-radius: 10px;
+      padding:10px;
+      height: 180px;
+      overflow:auto;
+      padding-right: 220px; /* room for pinned power */
+      scrollbar-color: rgba(255,255,255,.25) rgba(0,0,0,.2);
+    }
+    .logLine{white-space:nowrap;}
+
+    /* pinned power box bottom-right, independent colours */
+    .powerBox{
+      position:absolute;
+      right:12px;
+      bottom:12px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.18);
+      border-radius:10px;
+      padding:10px;
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width: 190px;
+      text-align:right;
+    }
+    .powerLine{white-space:nowrap;}
+    .powerWhite{color: var(--white); text-shadow:none;}
+    .powerYellow{color: var(--warn); text-shadow: 0 0 8px rgba(255,213,74,.18);}
+    .powerRed{color: var(--fire); text-shadow: 0 0 10px rgba(255,59,59,.18);}
+    .flash{animation: flash 1s linear infinite;}
+    @keyframes flash{0%,49%{opacity:1} 50%,100%{opacity:.25}}
+
+    /* Center LCD toast (NOT logged) */
+    .lcdToast{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform: translate(-50%,-50%);
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.20);
+      background: rgba(0,0,0,.30);
+      backdrop-filter: blur(8px);
+      font-weight:900;
+      letter-spacing:.35px;
+      text-transform:uppercase;
+      opacity:0;
+      pointer-events:none;
+      transition: opacity .18s ease, transform .18s ease;
+      white-space:nowrap;
+    }
+    .lcdToast.show{
+      opacity:1;
+      transform: translate(-50%,-50%) scale(1.02);
+    }
+
+    /* Zones + controls layout */
+    .lower{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:14px;
+    }
+
+    .zones{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.14));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:12px;
+    }
+    .zonesTitle{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .zonesTitle h3{margin:0;font-size:14px;letter-spacing:.2px;opacity:.95}
+
+    .legend{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      font-size:12px;
+      opacity:.85;
+      align-items:center;
+    }
+    .legItem{display:flex;gap:6px;align-items:center}
+    .lamp{
+      width:10px;height:10px;border-radius:50%;
+      background:#777;
+      border:1px solid rgba(0,0,0,.55);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+    }
+    .lamp.ok{background: var(--ok); box-shadow: 0 0 10px rgba(66,255,113,.28)}
+    .lamp.fault{background: var(--warn); box-shadow: 0 0 10px rgba(255,213,74,.25)}
+    .lamp.fire{background: var(--fire); box-shadow: 0 0 10px rgba(255,59,59,.25)}
+    .lamp.off{background:#555; opacity:.7; box-shadow:none}
+
+    /* 5 across, 2 down */
+    .zoneGrid{
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap:10px 12px;
+    }
+
+    .zoneCard{
+      background: rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:12px;
+      padding:10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      min-height:52px;
+    }
+    .zoneLabel{display:flex;flex-direction:column;gap:2px; min-width:0;}
+    .zoneLabel b{font-size:13px}
+    .zoneLabel small{font-size:12px;opacity:.75; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width: 150px;}
+    .zoneLamp{
+      width:18px;height:18px;border-radius:50%;
+      background:#777;
+      border:1px solid rgba(0,0,0,.55);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.14);
+      flex:0 0 auto;
+    }
+    .zoneLamp.fireFlash{animation: flash .75s linear infinite;}
+    .zoneLamp.ok{background: var(--ok); box-shadow: 0 0 14px rgba(66,255,113,.28)}
+    .zoneLamp.fault{background: var(--warn); box-shadow: 0 0 14px rgba(255,213,74,.25)}
+    .zoneLamp.fire{background: var(--fire); box-shadow: 0 0 14px rgba(255,59,59,.25)}
+    .zoneLamp.off{background:#666; opacity:.55; box-shadow:none}
+
+    /* Controls row: key + buttons in one line */
+    .controlsRow{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.14));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:14px;
+      padding:12px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:space-between;
+    }
+
+    .keySlotWrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 240px;
+    }
+
+    .keySlot{
+      width:64px;height:40px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.18);
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.10), rgba(0,0,0,.25));
+      position:relative;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      user-select:none;
+    }
+    .keySlot:active{transform: translateY(1px)}
+    .slotHole{
+      width:18px;height:18px;border-radius:6px;
+      border:1px solid rgba(0,0,0,.6);
+      background: rgba(0,0,0,.55);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.10);
+      position:absolute;
+    }
+    .keyGraphic{
+      position:absolute;
+      width:26px;height:26px;
+      opacity:0;
+      transform: translateX(-2px) rotate(0deg);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .keyInserted .keyGraphic{
+      opacity:1;
+      transform: translateX(-2px) rotate(70deg);
+    }
+
+    .keyText{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .keyText b{font-size:13px}
+    .keyText small{font-size:12px;opacity:.8}
+    .keyState{
+      font-size:12px;
+      padding:5px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      opacity:.95;
+      margin-left:auto;
+    }
+
+    .btnStrip{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+      justify-content:flex-end;
+      flex:1;
+    }
+    .btn{
+      border:1px solid var(--btnBorder);
+      border-radius:12px;
+      padding:10px 12px;
+      cursor:pointer;
+      font-weight:900;
+      letter-spacing:.2px;
+      user-select:none;
+      min-width: 120px;
+    }
+    .btn:active{transform: translateY(1px)}
+    .btn:disabled{opacity:.45; cursor:not-allowed; transform:none;}
+    .btn.orange{background: linear-gradient(180deg, #ffb43a, #d98000); color:#1b1204;}
+    .btn.red{background: linear-gradient(180deg, #ff5858, #c91212); color:#1b0505;}
+    .btn.green{background: linear-gradient(180deg, #6bff93, #16b64b); color:#04150a;}
+    .btn.blue{background: linear-gradient(180deg, #58a8ff, #1f59d8); color:#04101b;}
+
+    /* Instructor */
+    .instructor{
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(0,0,0,.14));
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      overflow:hidden;
+
+      position: sticky;
+      top: 70px;
+      max-height: calc(100vh - 90px);
+      box-shadow: 0 18px 60px var(--shadow);
+    }
+    .instrHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:12px 14px;
+      background: rgba(0,0,0,.20);
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .instrHeader h2{margin:0;font-size:14px;letter-spacing:.2px;}
+    .instrToggle{
+      cursor:pointer;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color:#e9eef6;
+      padding:8px 10px;
+      border-radius:12px;
+    }
+    .instrToggle:active{transform: translateY(1px)}
+    .instrBody{
+      padding:14px;
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:14px;
+      overflow:auto;
+      max-height: calc(100vh - 150px);
+    }
+    .collapsed .instrBody{display:none}
+
+    .section{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.16);
+      border-radius:14px;
+      padding:12px;
+      min-width: 0;
+    }
+    .section h3{
+      margin:0 0 8px 0;
+      font-size:13px;
+      letter-spacing:.2px;
+      opacity:.95;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      justify-content:space-between;
+    }
+    .section h3 small{font-weight:400; opacity:.75}
+
+    .row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    label{font-size:12px; opacity:.9;}
+
+    /* Dropdown visibility fix */
+    select, input[type="range"]{
+      font: inherit;
+    }
+    select{
+      background: rgba(10,12,16,.70);
+      color:#e9eef6;
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:12px;
+      padding:8px 10px;
+      outline:none;
+    }
+    option{
+      background:#11141a;
+      color:#e9eef6;
+    }
+
+    .pillBtn{
+      cursor:pointer;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color:#e9eef6;
+      padding:8px 10px;
+      border-radius:12px;
+      user-select:none;
+    }
+    .pillBtn:active{transform: translateY(1px)}
+    .pillBtn.danger{
+      border-color: rgba(255,59,59,.35);
+      background: rgba(255,59,59,.12);
+    }
+    .pillBtn.warn{
+      border-color: rgba(255,213,74,.35);
+      background: rgba(255,213,74,.10);
+    }
+    .flashBtn{animation: flash .9s linear infinite;}
+
+    .radioGroup{
+      display:flex; gap:10px; flex-wrap:wrap;
+      margin-top:8px;
+    }
+    .radioCard{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.04);
+      border-radius:14px;
+      padding:10px 10px;
+      min-width: 210px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .radioCard b{font-size:12px}
+    .radioCard small{opacity:.78; font-size:12px}
+
+    .hint{
+      font-size:12px;
+      opacity:.78;
+      margin-top:8px;
+      line-height:1.35;
+    }
+
+    .mutedTag{
+      color:#ffd54a;
+      border:1px solid rgba(255,213,74,.35);
+      background: rgba(255,213,74,.10);
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:12px;
+      display:none;
+    }
+    .mutedOn .mutedTag{display:inline-flex}
+
+    .sliderWrap{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      width: 100%;
+      max-width: 520px;
+    }
+    .sliderWrap input[type="range"]{
+      width: min(320px, 100%);
+    }
+    .kv{
+      font-size:12px;
+      opacity:.85;
+      white-space:nowrap;
+    }
+
+    .footer{
+      margin: 6px 0 18px 0;
+      text-align:center;
+      opacity:.75;
+      line-height:1.5;
+      font-size:12px;
+    }
+
+    /* Donate button (bottom-left, unobtrusive, user-hideable) */
+    .donateBtn{
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 9999;
+
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+
+      padding:9px 12px;
+      border-radius: 999px;
+      text-decoration:none;
+
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.16);
+      color:#e9eef6;
+
+      box-shadow: 0 12px 30px rgba(0,0,0,.28);
+      backdrop-filter: blur(10px);
+
+      font-weight: 800;
+      letter-spacing:.2px;
+      user-select:none;
+    }
+    .donateBtn:hover{ background: rgba(255,255,255,.12); }
+    .donateBtn:active{ transform: translateY(1px); }
+
+    .donateHide{
+      position: fixed;
+      left: 14px;
+      bottom: 58px;
+      z-index: 9999;
+
+      font-size:11px;
+      opacity:.75;
+      cursor:pointer;
+      user-select:none;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.18);
+    }
+    .donateHide:hover{ opacity:.95; }
+
+    @media (max-width: 980px){
+      .zoneGrid{grid-template-columns: repeat(2, 1fr);}
+      .logBox{padding-right: 10px;}
+      .powerBox{position:static; margin-top:10px; text-align:left; min-width:auto;}
+      .lcd{min-height: 270px;}
+      .instructor{position:static; max-height:none;}
+      .instrBody{grid-template-columns: 1fr; max-height:none;}
+    }
+  </style>
+</head>
+
+<body>
+  <div class="topbar" id="topbar">
+    <div class="brand">
+      <span>UK Fire Alarm Panel Simulator</span>
+      <span class="mutedTag" id="mutedTag">Sound Muted</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="toggle" id="muteBtn" title="Mute/unmute audio (does not affect panel states)">
+      🔇 <span id="muteLabel">Mute</span> <small>(global)</small>
+    </button>
+  </div>
+
+  <div class="layout">
+    <!-- Main Panel -->
+    <div class="panel">
+      <div class="panelInner">
+        <div class="lcdFrame">
+          <div class="lcd" id="lcd">
+            <div class="lcdHeader">
+              <div class="status">
+                <span class="statusDot" id="statusDot"></span>
+                <span id="statusText">SYSTEM NORMAL</span>
+              </div>
+              <div class="lcdRightTop">
+                <div class="time" id="clock">[--:--:--]</div>
+                <button class="clearLogBtn" id="clearLogBtn">Clear Log</button>
+              </div>
+            </div>
+
+            <div class="logBox" id="logBox" aria-label="Event Log"></div>
+
+            <div class="powerBox">
+              <div class="powerLine" id="powerMains">Mains Power OK</div>
+              <div class="powerLine" id="powerBatt">Battery Power OK</div>
+            </div>
+
+            <div class="lcdToast" id="lcdToast">PANEL UNLOCKED</div>
+          </div>
+        </div>
+
+        <div class="lower">
+          <div class="zones">
+            <div class="zonesTitle">
+              <h3>Zones (1–10)</h3>
+              <div class="legend">
+                <span class="legItem"><span class="lamp ok"></span> Normal</span>
+                <span class="legItem"><span class="lamp fault"></span> Fault</span>
+                <span class="legItem"><span class="lamp fire"></span> Fire (flashing)</span>
+                <span class="legItem"><span class="lamp off"></span> Panel Off</span>
+              </div>
+            </div>
+            <div class="zoneGrid" id="zoneGrid"></div>
+          </div>
+
+          <!-- Key + buttons one line -->
+          <div class="controlsRow" id="controlsRow">
+            <div class="keySlotWrap">
+              <div class="keySlot" id="keySlot" title="Insert/remove key">
+                <div class="slotHole"></div>
+                <svg class="keyGraphic" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M14 10a4 4 0 1 0-2.1 3.5L14 16h2v2h2v2h2v-3.2l-5.3-5.3A4 4 0 0 0 14 10Z"
+                        stroke="white" stroke-opacity=".9" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </div>
+
+              <div class="keyText">
+                <b id="keyTitle">Insert key here</b>
+                <small id="keySub">Panel buttons locked until key is inserted.</small>
+              </div>
+              <span class="keyState" id="keyState">LOCKED</span>
+            </div>
+
+            <div class="btnStrip">
+              <button class="btn orange" id="btnAck" disabled>Acknowledge</button>
+              <button class="btn red" id="btnSilence" disabled>Silence</button>
+              <button class="btn green" id="btnReset" disabled>Reset</button>
+              <button class="btn blue" id="btnTest" disabled>Test</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instructor -->
+    <div class="instructor" id="instructor">
+      <div class="instrHeader">
+        <h2>Instructor Panel <span style="opacity:.75;font-weight:400;">(Control Centre)</span></h2>
+        <button class="instrToggle" id="instrToggle">Hide</button>
+      </div>
+
+      <div class="instrBody">
+        <div class="section">
+          <h3>Device Activations (Fire) <small>MCP A–D, Detector A–B per zone</small></h3>
+
+          <div class="row">
+            <label>Zone:
+              <select id="devZone"></select>
+            </label>
+
+            <label>Device:
+              <select id="devType">
+                <option value="MCP_A">MCP A</option>
+                <option value="MCP_B">MCP B</option>
+                <option value="MCP_C">MCP C</option>
+                <option value="MCP_D">MCP D</option>
+                <option value="DET_A">Detector A</option>
+                <option value="DET_B">Detector B</option>
+              </select>
+            </label>
+
+            <button class="pillBtn danger" id="triggerDev">Trigger</button>
+            <button class="pillBtn" id="clearDev">Clear (this device)</button>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <button class="pillBtn danger" id="resetMcpsBtn">Reset Activated Devices</button>
+            <button class="pillBtn" id="clearAllDevices">Clear ALL devices</button>
+          </div>
+
+          <div class="hint">
+            Fire is <b>latched</b> once triggered, and only ends when devices are reset <b>and</b> the panel <b>Reset</b> is pressed.
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>Exit Doors (Zones 1–4) <small>Open = fault unless overridden by fire</small></h3>
+          <div class="row">
+            <label>Zone:
+              <select id="doorZone">
+                <option value="1">Zone 1</option>
+                <option value="2">Zone 2</option>
+                <option value="3">Zone 3</option>
+                <option value="4">Zone 4</option>
+              </select>
+            </label>
+            <button class="pillBtn warn" id="toggleDoor">Toggle Door Open/Closed</button>
+          </div>
+          <div class="hint">Open door triggers <b>System Fault</b> and zone yellow (unless zone is in Fire).</div>
+        </div>
+
+        <div class="section">
+          <h3>Faults <small>Zone faults + Panel fault</small></h3>
+
+          <div class="row">
+            <label>Zone:
+              <select id="faultZone"></select>
+            </label>
+
+            <label>Fault type:
+              <select id="faultType">
+                <option value="NONE">None</option>
+                <option value="SENSOR">Sensor Error</option>
+                <option value="SOUNDER">Sounder Error</option>
+                <option value="ELECTRICAL">Electrical Fault</option>
+              </select>
+            </label>
+
+            <button class="pillBtn warn" id="applyFault">Apply/Update</button>
+            <button class="pillBtn" id="clearFault">Clear Zone Fault</button>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <button class="pillBtn warn" id="togglePanelFault">Toggle PANEL Fault (All zones yellow)</button>
+          </div>
+
+          <div class="hint">Panel <b>Reset</b> clears these faults (except power faults).</div>
+        </div>
+
+        <div class="section">
+          <h3>Power States <small>Power is instructor-controlled</small></h3>
+
+          <div class="radioGroup" id="powerRadios">
+            <div class="radioCard">
+              <input type="radio" name="pwr" value="MAINS_OK_BATT_OK" checked />
+              <div><b>Mains OK / Battery OK</b><br/><small>Normal (white)</small></div>
+            </div>
+            <div class="radioCard">
+              <input type="radio" name="pwr" value="MAINS_OK_BATT_LOW" />
+              <div><b>Mains OK / Battery LOW</b><br/><small>Fault (yellow)</small></div>
+            </div>
+            <div class="radioCard">
+              <input type="radio" name="pwr" value="MAINS_OK_BATT_OFF" />
+              <div><b>Mains OK / Battery OFF</b><br/><small>Fault (red)</small></div>
+            </div>
+            <div class="radioCard">
+              <input type="radio" name="pwr" value="MAINS_OFF_BATT_OK" />
+              <div><b>Mains OFF / Battery OK</b><br/><small>Fault (red)</small></div>
+            </div>
+            <div class="radioCard">
+              <input type="radio" name="pwr" value="MAINS_OFF_BATT_LOW" />
+              <div><b>Mains OFF / Battery LOW</b><br/><small>Fault (flashing red)</small></div>
+            </div>
+            <div class="radioCard">
+              <input type="radio" name="pwr" value="MAINS_OFF_BATT_OFF" />
+              <div><b>Mains OFF / Battery OFF</b><br/><small>Panel OFF</small></div>
+            </div>
+          </div>
+
+          <div class="hint">Power faults are <b>not</b> cleared by panel reset.</div>
+        </div>
+
+        <div class="section">
+          <h3>Audio & Sounders <small>Profiles + volume + fault timing</small></h3>
+
+          <div class="row">
+            <label>Sounder profile:
+              <select id="soundProfile">
+                <option value="UK_FAST_WAIL" selected>UK Fast Wail (default)</option>
+                <option value="GENT_FAST">Gent (fast two-tone)</option>
+                <option value="KENTEC_STEADY">Kentec (steady two-tone)</option>
+                <option value="CONTINUOUS_TWOTONE_1S">Two-tone (1s alternating)</option>
+                <option value="SWEEPING_WAIL">Sweeping wail</option>
+                <option value="SLOW_WHOOP">Slow whoop</option>
+              </select>
+            </label>
+
+            <button class="pillBtn" id="previewSound">Preview</button>
+            <button class="pillBtn" id="stopAllAudio">Stop</button>
+          </div>
+
+          <div class="row" style="margin-top:10px;">
+            <div class="sliderWrap">
+              <label class="kv" for="volSlider">Volume</label>
+              <input id="volSlider" type="range" min="0" max="100" value="55" />
+              <span class="kv" id="volValue">55%</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="sliderWrap">
+              <label class="kv" for="faultInterval">Fault beep interval</label>
+              <input id="faultInterval" type="range" min="1500" max="4500" step="250" value="2500" />
+              <span class="kv" id="faultValue">2500ms</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <label>Fault tone style:
+              <select id="faultToneStyle">
+                <option value="INTERRUPTED_2200" selected>Interrupted 2200Hz (default)</option>
+                <option value="INTERRUPTED_2000">Interrupted 2000Hz</option>
+                <option value="PIP_2500">Pip 2500Hz</option>
+                <option value="PIP_1800">Pip 1800Hz</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="hint">
+            Browsers require a click before audio starts. Global mute is top-left.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Version 1.0 (2026)</div>
+      <div>Developed by Jamie Whitehouse</div>
+    </div>
+  </div>
+
+  <!-- Donate (optional, user-hideable) -->
+  <div id="donateWrap">
+    <a class="donateBtn"
+       href="https://www.paypal.com/donate/?hosted_button_id=5DFJFUKA3KJM6"
+       target="_blank"
+       rel="noopener noreferrer">
+      ❤️ Donate
+    </a>
+    <div class="donateHide" id="donateHide" title="Hide the donate button">hide</div>
+  </div>
+
+<script>
+(() => {
+  // -----------------------------
+  // Utilities
+  // -----------------------------
+  const pad2 = (n) => String(n).padStart(2,'0');
+  const nowStamp = () => {
+    const d = new Date();
+    return `[${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}]`;
+  };
+  const el = (id) => document.getElementById(id);
+
+  // -----------------------------
+  // State Model
+  // -----------------------------
+  const ZONE_COUNT = 10;
+  const zones = Array.from({length: ZONE_COUNT}, (_, i) => ({
+    id: i+1,
+    devices: { MCP_A:false, MCP_B:false, MCP_C:false, MCP_D:false, DET_A:false, DET_B:false },
+    doorOpen: (i < 4) ? false : null,
+    fault: "NONE",
+  }));
+
+  const app = {
+    keyInserted: false,
+    muted: false,
+
+    // latched fire: once triggered, stays FIRE until devices cleared and panel reset pressed
+    fireLatched: false,
+    fireSilenced: false,
+    acknowledged: false,
+
+    panelFault: false,
+    power: "MAINS_OK_BATT_OK",
+
+    // audio controls
+    soundProfile: "UK_FAST_WAIL",
+    masterVolume: 0.55,          // 0..1
+    faultIntervalMs: 2500,
+    faultToneStyle: "INTERRUPTED_2200",
+
+    log: [],
+  };
+
+  // -----------------------------
+  // Derived status
+  // -----------------------------
+  function isPanelOff(){ return app.power === "MAINS_OFF_BATT_OFF"; }
+  function anyDeviceActive(){ return zones.some(z => Object.values(z.devices).some(Boolean)); }
+  function activeDeviceList(){
+    const list = [];
+    for(const z of zones){
+      for(const [k,v] of Object.entries(z.devices)){
+        if(v) list.push(`Zone ${z.id} ${k.replace('_',' ')}`);
+      }
+    }
+    return list;
+  }
+  function zoneHasFire(z){ return Object.values(z.devices).some(Boolean); }
+
+  function zoneHasFault(z){
+    if(app.panelFault) return true;
+    if(z.id <= 4 && z.doorOpen) return true;
+    return z.fault !== "NONE";
+  }
+
+  function powerImpliesFault(){
+    switch(app.power){
+      case "MAINS_OK_BATT_OK": return false;
+      case "MAINS_OFF_BATT_OFF": return false;
+      default: return true;
+    }
+  }
+
+  function overallState(){
+    if(isPanelOff()) return "OFF";
+    if(app.fireLatched) return "FIRE";
+    if(powerImpliesFault()) return "FAULT";
+    if(app.panelFault) return "FAULT";
+    if(zones.some(zoneHasFault)) return "FAULT";
+    return "NORMAL";
+  }
+
+  // -----------------------------
+  // LCD toast (not logged)
+  // -----------------------------
+  let toastTimer = null;
+  function showToast(text){
+    const t = el("lcdToast");
+    t.textContent = text;
+    t.classList.add("show");
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 1600);
+  }
+
+  // -----------------------------
+  // Logging
+  // -----------------------------
+  function logEvent(msg){
+    app.log.push(`${nowStamp()} ${msg}`);
+    renderLog();
+  }
+
+  function renderLog(){
+    const box = el("logBox");
+    box.innerHTML = "";
+    if(app.log.length === 0){
+      // Blank means blank (per your request)
+      return;
+    }
+    for(const line of app.log){
+      const d = document.createElement("div");
+      d.className = "logLine";
+      d.textContent = line;
+      box.appendChild(d);
+    }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  // -----------------------------
+  // UI: Zones
+  // -----------------------------
+  function buildZones(){
+    const grid = el("zoneGrid");
+    grid.innerHTML = "";
+    zones.forEach(z => {
+      const card = document.createElement("div");
+      card.className = "zoneCard";
+
+      const left = document.createElement("div");
+      left.className = "zoneLabel";
+      const b = document.createElement("b");
+      b.textContent = `Zone ${z.id}`;
+      const s = document.createElement("small");
+      s.id = `zoneSub_${z.id}`;
+      s.textContent = "Normal";
+      left.appendChild(b);
+      left.appendChild(s);
+
+      const lamp = document.createElement("div");
+      lamp.className = "zoneLamp";
+      lamp.id = `zoneLamp_${z.id}`;
+
+      card.appendChild(left);
+      card.appendChild(lamp);
+      grid.appendChild(card);
+    });
+  }
+
+  function renderZones(){
+    const off = isPanelOff();
+    for(const z of zones){
+      const lamp = el(`zoneLamp_${z.id}`);
+      const sub = el(`zoneSub_${z.id}`);
+      lamp.classList.remove("ok","fault","fire","off","fireFlash");
+
+      if(off){
+        lamp.classList.add("off");
+        sub.textContent = "Panel Off";
+        continue;
+      }
+
+      const fire = zoneHasFire(z);
+      const fault = zoneHasFault(z);
+
+      if(fire){
+        lamp.classList.add("fire","fireFlash");
+        const active = Object.entries(z.devices).filter(([,v]) => v).map(([k]) => k.replace('_',' '));
+        sub.textContent = `FIRE: ${active.join(", ")}`;
+      } else if(fault){
+        lamp.classList.add("fault");
+        const bits = [];
+        if(app.panelFault) bits.push("PANEL FAULT");
+        if(z.id<=4 && z.doorOpen) bits.push("Exit door open");
+        if(z.fault !== "NONE") bits.push(z.fault.replace('_',' '));
+        sub.textContent = `FAULT: ${bits.join(" / ") || "Fault"}`;
+      } else {
+        lamp.classList.add("ok");
+        sub.textContent = "Normal";
+      }
+    }
+  }
+
+  // -----------------------------
+  // UI: LCD status + colouring
+  // -----------------------------
+  function renderStatus(){
+    const state = overallState();
+    const statusDot = el("statusDot");
+    const statusText = el("statusText");
+    const lcd = el("lcd");
+
+    lcd.classList.remove("lcdFault","lcdFire","lcdOff");
+
+    if(state === "OFF"){
+      lcd.classList.add("lcdOff");
+      statusDot.style.background = "#666";
+      statusDot.style.boxShadow = "none";
+      statusText.textContent = "PANEL OFF";
+      return;
+    }
+
+    if(state === "FIRE"){
+      lcd.classList.add("lcdFire");
+      statusDot.style.background = "var(--fire)";
+      statusDot.style.boxShadow = "0 0 14px rgba(255,59,59,.35)";
+      statusText.textContent = "FIRE ALARM ACTIVATED";
+      return;
+    }
+
+    if(state === "FAULT"){
+      lcd.classList.add("lcdFault");
+      statusDot.style.background = "var(--warn)";
+      statusDot.style.boxShadow = "0 0 14px rgba(255,213,74,.30)";
+      statusText.textContent = "SYSTEM FAULT";
+      return;
+    }
+
+    statusDot.style.background = "var(--ok)";
+    statusDot.style.boxShadow = "0 0 14px rgba(66,255,113,.30)";
+    statusText.textContent = "SYSTEM NORMAL";
+  }
+
+  function renderPowerText(){
+    const mains = el("powerMains");
+    const batt = el("powerBatt");
+    mains.className = "powerLine";
+    batt.className = "powerLine";
+
+    const set = (node, txt, cls, flashing=false) => {
+      node.textContent = txt;
+      node.classList.add(cls);
+      if(flashing) node.classList.add("flash");
+    };
+
+    switch(app.power){
+      case "MAINS_OK_BATT_OK":
+        set(mains, "Mains Power OK", "powerWhite");
+        set(batt, "Battery Power OK", "powerWhite");
+        break;
+      case "MAINS_OK_BATT_LOW":
+        set(mains, "Mains Power OK", "powerWhite");
+        set(batt, "Battery LOW", "powerYellow");
+        break;
+      case "MAINS_OK_BATT_OFF":
+        set(mains, "Mains Power OK", "powerWhite");
+        set(batt, "Battery OFF", "powerRed");
+        break;
+      case "MAINS_OFF_BATT_OK":
+        set(mains, "Mains Power DISCONNECTED", "powerRed");
+        set(batt, "Battery Power OK", "powerWhite");
+        break;
+      case "MAINS_OFF_BATT_LOW":
+        set(mains, "Mains Power DISCONNECTED", "powerRed", true);
+        set(batt, "Battery LOW", "powerRed", true);
+        break;
+      case "MAINS_OFF_BATT_OFF":
+        set(mains, "No Power", "powerRed");
+        set(batt, "Battery OFF", "powerRed");
+        break;
+    }
+  }
+
+  // -----------------------------
+  // Audio (Web Audio)
+  // -----------------------------
+  let audioCtx = null;
+  let masterGain = null;
+
+  let fireTimer = null;
+  let faultTimer = null;
+
+  function ensureAudio(){
+    if(audioCtx) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new Ctx();
+
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = app.muted ? 0 : app.masterVolume;
+    masterGain.connect(audioCtx.destination);
+  }
+
+  function setMuted(m){
+    app.muted = m;
+    document.body.classList.toggle("mutedOn", m);
+    el("muteLabel").textContent = m ? "Unmute" : "Mute";
+    if(masterGain) masterGain.gain.value = m ? 0 : app.masterVolume;
+  }
+
+  function setMasterVolume01(v01){
+    app.masterVolume = Math.max(0, Math.min(1, v01));
+    if(masterGain && !app.muted) masterGain.gain.value = app.masterVolume;
+  }
+
+  function stopAllTimers(){
+    if(fireTimer){ clearInterval(fireTimer); fireTimer = null; }
+    if(faultTimer){ clearInterval(faultTimer); faultTimer = null; }
+  }
+
+  // Small envelope helpers (less “pure sine” harshness)
+  function makeTone(freq, duration, gain, type="triangle"){
+    ensureAudio();
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+
+    osc.type = type; // triangle tends to feel more “alarm-like” than sine
+    osc.frequency.setValueAtTime(freq, t0);
+
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, gain), t0 + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+
+    osc.connect(g);
+    g.connect(masterGain);
+
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.03);
+  }
+
+  function toneBurst(freq, duration, gain, type="triangle"){
+    if(isPanelOff()) return;
+    makeTone(freq, duration, gain, type);
+  }
+
+  function sweep(fromHz, toHz, duration, gain, type="triangle"){
+    if(isPanelOff()) return;
+    ensureAudio();
+    const t0 = audioCtx.currentTime;
+
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(fromHz, t0);
+    osc.frequency.linearRampToValueAtTime(toHz, t0 + duration);
+
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, gain), t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.04);
+  }
+
+  // FIRE: profiles
+  function startFireTone(){
+    if(isPanelOff()) return;
+    ensureAudio();
+    if(fireTimer) return;
+
+    const profile = app.soundProfile;
+
+    // alternating two-tone helper
+    const twoTone = (f1, f2, stepMs, onDur, gain, type="triangle") => {
+      let hi = false;
+      const play = () => {
+        if(app.fireSilenced) return;
+        hi = !hi;
+        toneBurst(hi ? f2 : f1, onDur, gain, type);
+      };
+      play();
+      fireTimer = setInterval(play, stepMs);
+    };
+
+    // Default: UK fast wail
+    if(profile === "UK_FAST_WAIL"){
+      twoTone(800, 970, 200, 0.14, 0.40, "triangle");
+      return;
+    }
+
+    if(profile === "GENT_FAST"){
+      twoTone(780, 985, 220, 0.15, 0.38, "triangle");
+      return;
+    }
+
+    if(profile === "KENTEC_STEADY"){
+      twoTone(800, 970, 280, 0.20, 0.34, "triangle");
+      return;
+    }
+
+    if(profile === "CONTINUOUS_TWOTONE_1S"){
+      let hi = false;
+      const play = () => {
+        if(app.fireSilenced) return;
+        hi = !hi;
+        toneBurst(hi ? 970 : 800, 0.92, 0.30, "triangle");
+      };
+      play();
+      fireTimer = setInterval(play, 1000);
+      return;
+    }
+
+    if(profile === "SWEEPING_WAIL"){
+      const play = () => {
+        if(app.fireSilenced) return;
+        sweep(650, 1650, 0.85, 0.36, "sawtooth");
+        setTimeout(() => {
+          if(app.fireSilenced) return;
+          sweep(1650, 700, 0.65, 0.30, "sawtooth");
+        }, 850);
+      };
+      play();
+      fireTimer = setInterval(play, 1700);
+      return;
+    }
+
+    // SLOW_WHOOP
+    const playWhoop = () => {
+      if(app.fireSilenced) return;
+      sweep(500, 1700, 1.35, 0.30, "sawtooth");
+      setTimeout(() => {
+        if(app.fireSilenced) return;
+        sweep(1700, 700, 0.70, 0.25, "sawtooth");
+      }, 1350);
+    };
+    playWhoop();
+    fireTimer = setInterval(playWhoop, 2300);
+  }
+
+  // FAULT beep patterns
+  function startPanelBeep(){
+    if(isPanelOff()) return;
+    ensureAudio();
+    if(faultTimer) return;
+
+    const interval = app.faultIntervalMs;
+
+    const interrupted = (freq) => {
+      toneBurst(freq, 0.08, 0.28, "square");
+      setTimeout(()=>toneBurst(freq, 0.08, 0.28, "square"), 140);
+      setTimeout(()=>toneBurst(freq, 0.08, 0.28, "square"), 280);
+      setTimeout(()=>toneBurst(freq, 0.08, 0.28, "square"), 420);
+    };
+
+    const pip = (freq) => {
+      toneBurst(freq, 0.12, 0.26, "square");
+    };
+
+    const play = () => {
+      const s = app.faultToneStyle;
+      if(s === "INTERRUPTED_2200") interrupted(2200);
+      else if(s === "INTERRUPTED_2000") interrupted(2000);
+      else if(s === "PIP_2500") pip(2500);
+      else pip(1800);
+    };
+
+    play();
+    faultTimer = setInterval(play, interval);
+  }
+
+  function updateAudio(){
+    stopAllTimers();
+    if(isPanelOff()) return;
+
+    const state = overallState();
+    if(state === "FIRE"){
+      if(app.fireSilenced){
+        startPanelBeep();
+      } else {
+        startFireTone();
+      }
+      return;
+    }
+    if(state === "FAULT"){
+      startPanelBeep();
+      return;
+    }
+  }
+
+  // -----------------------------
+  // Panel buttons / key
+  // -----------------------------
+  function setKeyInserted(v){
+    app.keyInserted = v;
+    el("keyState").textContent = v ? "UNLOCKED" : "LOCKED";
+    el("keyTitle").textContent = v ? "Key inserted" : "Insert key here";
+    el("keySub").textContent = v ? "Panel buttons enabled." : "Panel buttons locked until key is inserted.";
+    el("keySlot").classList.toggle("keyInserted", v);
+    renderButtonEnablement();
+    showToast(v ? "PANEL UNLOCKED" : "PANEL LOCKED");
+  }
+
+  function renderButtonEnablement(){
+    const off = isPanelOff();
+    const enabled = app.keyInserted && !off;
+    el("btnAck").disabled = !enabled;
+    el("btnSilence").disabled = !enabled;
+    el("btnReset").disabled = !enabled;
+    el("btnTest").disabled = !enabled;
+    el("clearLogBtn").disabled = off;
+  }
+
+  function panelAcknowledge(){
+    if(isPanelOff()) return;
+    app.acknowledged = true;
+    const state = overallState();
+    if(state === "FIRE") logEvent("Fire alarm acknowledged.");
+    else if(state === "FAULT") logEvent("System fault acknowledged.");
+    else logEvent("Panel acknowledged (system normal).");
+  }
+
+  function panelSilence(){
+    if(isPanelOff()) return;
+    if(overallState() !== "FIRE"){
+      logEvent("Silence pressed (no active fire).");
+      return;
+    }
+    if(app.fireSilenced){
+      logEvent("Silence pressed (already silenced).");
+      return;
+    }
+    app.fireSilenced = true;
+    logEvent("Sounders silenced (fire remains latched until panel reset).");
+    updateAll();
+  }
+
+  function panelReset(){
+    if(isPanelOff()) return;
+
+    // Always clear non-power faults
+    zones.forEach(z => z.fault = "NONE");
+    if(app.panelFault){
+      app.panelFault = false;
+      logEvent("Panel fault cleared by reset.");
+    }
+
+    if(app.fireLatched){
+      if(anyDeviceActive()){
+        logEvent("Reset pressed: activations still present (reset devices required).");
+      } else {
+        app.fireLatched = false;
+        app.fireSilenced = false;
+        logEvent("Fire reset completed.");
+      }
+    } else {
+      logEvent("Reset complete.");
+    }
+
+    updateAll();
+  }
+
+  function panelTest(){
+    if(isPanelOff()) return;
+    logEvent("Test pressed: tone test (simulation).");
+    toneBurst(970, 0.12, 0.26, "square");
+    setTimeout(()=>toneBurst(800, 0.12, 0.26, "square"), 170);
+  }
+
+  // -----------------------------
+  // Instructor actions
+  // -----------------------------
+  function triggerDevice(zoneId, devKey){
+    if(isPanelOff()){
+      logEvent("Attempted device trigger while panel is OFF.");
+      return;
+    }
+    const z = zones[zoneId - 1];
+    if(!z.devices[devKey]){
+      z.devices[devKey] = true;
+      logEvent(`Zone ${zoneId} ${devKey.replace('_',' ')} activated.`);
+      if(!app.fireLatched){
+        app.fireLatched = true;
+        app.fireSilenced = false;
+        logEvent("Fire alarm latched.");
+      }
+      updateAll();
+    } else {
+      logEvent(`Zone ${zoneId} ${devKey.replace('_',' ')} already active.`);
+    }
+  }
+
+  function clearDevice(zoneId, devKey){
+    const z = zones[zoneId - 1];
+    if(z.devices[devKey]){
+      z.devices[devKey] = false;
+      logEvent(`Zone ${zoneId} ${devKey.replace('_',' ')} cleared.`);
+      updateAll();
+    } else {
+      logEvent(`Zone ${zoneId} ${devKey.replace('_',' ')} already clear.`);
+    }
+  }
+
+  function resetAllActivations(){
+    const list = activeDeviceList();
+    if(list.length === 0){
+      logEvent("Reset devices pressed: no active devices.");
+      return;
+    }
+    for(const z of zones){
+      for(const k of Object.keys(z.devices)) z.devices[k] = false;
+    }
+    logEvent(`Activated devices reset: ${list.join(", ")}.`);
+    updateAll();
+  }
+
+  function clearAllDevices(){
+    for(const z of zones){
+      for(const k of Object.keys(z.devices)) z.devices[k] = false;
+    }
+    logEvent("All devices cleared (fire still latched until panel reset).");
+    updateAll();
+  }
+
+  function toggleDoor(zoneId){
+    if(zoneId > 4) return;
+    const z = zones[zoneId - 1];
+    z.doorOpen = !z.doorOpen;
+    logEvent(z.doorOpen
+      ? `Zone ${zoneId} emergency exit door OPEN (fault).`
+      : `Zone ${zoneId} emergency exit door CLOSED (fault cleared).`
+    );
+    updateAll();
+  }
+
+  function applyZoneFault(zoneId, faultType){
+    const z = zones[zoneId - 1];
+    z.fault = faultType;
+    logEvent(faultType === "NONE"
+      ? `Zone ${zoneId} fault cleared.`
+      : `Zone ${zoneId} fault: ${faultType.replace('_',' ')}.`
+    );
+    updateAll();
+  }
+
+  function togglePanelFault(){
+    app.panelFault = !app.panelFault;
+    logEvent(app.panelFault ? "PANEL FAULT activated (all zones fault)." : "PANEL FAULT cleared.");
+    updateAll();
+  }
+
+  function setPowerState(p){
+    const prev = app.power;
+    app.power = p;
+
+    const map = {
+      MAINS_OK_BATT_OK: "Mains OK / Battery OK",
+      MAINS_OK_BATT_LOW: "Mains OK / Battery LOW",
+      MAINS_OK_BATT_OFF: "Mains OK / Battery OFF",
+      MAINS_OFF_BATT_OK: "Mains OFF / Battery OK",
+      MAINS_OFF_BATT_LOW: "Mains OFF / Battery LOW",
+      MAINS_OFF_BATT_OFF: "Mains OFF / Battery OFF (Panel OFF)",
+    };
+    if(prev !== p) logEvent(`Power set: ${map[p] || p}.`);
+    updateAll();
+  }
+
+  // -----------------------------
+  // Instructor helpers
+  // -----------------------------
+  function populateSelects(){
+    const devZone = el("devZone");
+    const faultZone = el("faultZone");
+    devZone.innerHTML = "";
+    faultZone.innerHTML = "";
+    for(let i=1;i<=ZONE_COUNT;i++){
+      const o1 = document.createElement("option");
+      o1.value = String(i);
+      o1.textContent = `Zone ${i}`;
+      devZone.appendChild(o1);
+
+      const o2 = document.createElement("option");
+      o2.value = String(i);
+      o2.textContent = `Zone ${i}`;
+      faultZone.appendChild(o2);
+    }
+  }
+
+  function renderResetDevicesButton(){
+    const btn = el("resetMcpsBtn");
+    const active = anyDeviceActive() && !isPanelOff();
+    btn.classList.toggle("flashBtn", active);
+  }
+
+  // -----------------------------
+  // Update loop
+  // -----------------------------
+  function updateAll(){
+    renderPowerText();
+    renderZones();
+    renderStatus();
+    renderButtonEnablement();
+    renderResetDevicesButton();
+    updateAudio();
+  }
+
+  // -----------------------------
+  // Clock
+  // -----------------------------
+  function startClock(){
+    const tick = () => {
+      const d = new Date();
+      el("clock").textContent = `[${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}]`;
+    };
+    tick();
+    setInterval(tick, 250);
+  }
+
+  // -----------------------------
+  // Donate button: user-hideable (remembers preference)
+  // -----------------------------
+  function initDonate(){
+    const wrap = el("donateWrap");
+    const hideBtn = el("donateHide");
+    if(!wrap || !hideBtn) return;
+
+    if(localStorage.getItem("hideDonate") === "1"){
+      wrap.style.display = "none";
+      return;
+    }
+
+    hideBtn.addEventListener("click", () => {
+      wrap.style.display = "none";
+      localStorage.setItem("hideDonate", "1");
+    });
+  }
+
+  // -----------------------------
+  // Wire events
+  // -----------------------------
+  function wire(){
+    el("muteBtn").addEventListener("click", async () => {
+      ensureAudio();
+      if(audioCtx.state === "suspended"){
+        try{ await audioCtx.resume(); } catch {}
+      }
+      setMuted(!app.muted);
+    });
+
+    el("keySlot").addEventListener("click", () => {
+      if(isPanelOff()) return;
+      setKeyInserted(!app.keyInserted);
+    });
+
+    el("btnAck").addEventListener("click", panelAcknowledge);
+    el("btnSilence").addEventListener("click", panelSilence);
+    el("btnReset").addEventListener("click", panelReset);
+    el("btnTest").addEventListener("click", panelTest);
+
+    el("clearLogBtn").addEventListener("click", () => {
+      if(isPanelOff()) return;
+      app.log = [];
+      renderLog(); // blank means blank
+    });
+
+    el("instrToggle").addEventListener("click", () => {
+      const box = el("instructor");
+      const collapsed = box.classList.toggle("collapsed");
+      el("instrToggle").textContent = collapsed ? "Show" : "Hide";
+    });
+
+    el("triggerDev").addEventListener("click", () => {
+      const z = Number(el("devZone").value);
+      const dev = el("devType").value;
+      triggerDevice(z, dev);
+    });
+    el("clearDev").addEventListener("click", () => {
+      const z = Number(el("devZone").value);
+      const dev = el("devType").value;
+      clearDevice(z, dev);
+    });
+
+    el("resetMcpsBtn").addEventListener("click", resetAllActivations);
+    el("clearAllDevices").addEventListener("click", clearAllDevices);
+
+    el("toggleDoor").addEventListener("click", () => {
+      const z = Number(el("doorZone").value);
+      toggleDoor(z);
+    });
+
+    el("applyFault").addEventListener("click", () => {
+      const z = Number(el("faultZone").value);
+      const f = el("faultType").value;
+      applyZoneFault(z, f);
+    });
+    el("clearFault").addEventListener("click", () => {
+      const z = Number(el("faultZone").value);
+      applyZoneFault(z, "NONE");
+    });
+
+    el("togglePanelFault").addEventListener("click", togglePanelFault);
+
+    document.querySelectorAll('input[name="pwr"]').forEach(r => {
+      r.addEventListener("change", () => {
+        if(r.checked) setPowerState(r.value);
+      });
+    });
+
+    // Audio controls
+    el("soundProfile").addEventListener("change", () => {
+      app.soundProfile = el("soundProfile").value;
+      logEvent(`Sounder profile set: ${el("soundProfile").options[el("soundProfile").selectedIndex].text}.`);
+      updateAll();
+    });
+
+    el("faultToneStyle").addEventListener("change", () => {
+      app.faultToneStyle = el("faultToneStyle").value;
+      logEvent(`Fault tone set: ${el("faultToneStyle").options[el("faultToneStyle").selectedIndex].text}.`);
+      updateAll();
+    });
+
+    el("faultInterval").addEventListener("input", () => {
+      const v = Number(el("faultInterval").value);
+      app.faultIntervalMs = v;
+      el("faultValue").textContent = `${v}ms`;
+      updateAll();
+    });
+
+    el("volSlider").addEventListener("input", () => {
+      const pct = Number(el("volSlider").value);
+      el("volValue").textContent = `${pct}%`;
+      setMasterVolume01(pct / 100);
+    });
+
+    el("previewSound").addEventListener("click", async () => {
+      ensureAudio();
+      if(audioCtx.state === "suspended"){
+        try{ await audioCtx.resume(); } catch {}
+      }
+
+      stopAllTimers();
+
+      const savedLatched = app.fireLatched;
+      const savedSilenced = app.fireSilenced;
+
+      app.fireLatched = true;
+      app.fireSilenced = false;
+      startFireTone();
+
+      setTimeout(() => {
+        stopAllTimers();
+        app.fireLatched = savedLatched;
+        app.fireSilenced = savedSilenced;
+        updateAudio();
+      }, 1600);
+
+      logEvent(`Preview: ${el("soundProfile").options[el("soundProfile").selectedIndex].text}.`);
+    });
+
+    el("stopAllAudio").addEventListener("click", () => {
+      stopAllTimers();
+      logEvent("All audio stopped (manual).");
+    });
+
+    // Resume audio on user gesture (autoplay policy)
+    document.addEventListener("pointerdown", async () => {
+      if(!audioCtx) return;
+      if(audioCtx.state === "suspended"){
+        try{ await audioCtx.resume(); } catch {}
+      }
+    }, {passive:true});
+  }
+
+  // -----------------------------
+  // Init
+  // -----------------------------
+  function init(){
+    buildZones();
+    populateSelects();
+    startClock();
+    wire();
+    initDonate();
+
+    renderLog();
+    renderPowerText();
+    setKeyInserted(false);
+    setMuted(false);
+
+    // default audio UI reflects state
+    el("volSlider").value = String(Math.round(app.masterVolume * 100));
+    el("volValue").textContent = `${Math.round(app.masterVolume * 100)}%`;
+    el("faultInterval").value = String(app.faultIntervalMs);
+    el("faultValue").textContent = `${app.faultIntervalMs}ms`;
+
+    logEvent("Simulator started. System Normal.");
+    updateAll();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
